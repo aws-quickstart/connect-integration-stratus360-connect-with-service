@@ -1,0 +1,6 @@
+[
+    {
+        "ParameterKey": "RandomContactFlowLogGroup",
+        "ParameterValue": "$[taskcat_random-string]"
+    }
+]

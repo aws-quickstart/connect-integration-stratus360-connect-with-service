@@ -1,0 +1,396 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Quickstart for Amazon connect, to be used in conjunction with the CTI adapter package
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Logs/Firehose Configuration
+        Parameters:
+          - AmznConnectOutputBucketName
+          - AgentFirehoseS3KeyPrefix
+          - AgentFirehoseS3Compression
+          - CtrFirehoseS3KeyPrefix
+          - CtrFirehoseS3Compression
+          - ContactFlowS3KeyPrefix
+          - ContactFlowLogGroup
+      - Label:
+          default: Kibana Configuration
+        Parameters:
+          - ESEnable
+          - ESName
+          - ESInstanceType
+          - ESInstanceVersion
+      - Label:
+          default: Quick Start Configuration
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+    ParameterLabels:
+      ContactFlowLogGroup:
+        default: Amazon Connect CloudWatch Log Group
+      AmznConnectOutputBucketName:
+        default: S3 Deployment Bucket Name
+      AgentFirehoseS3KeyPrefix:
+        default: S3 prefix for Agent Log Data
+      AgentFirehoseS3Compression:
+        default: Select Compression Type for Agent Logs
+      CtrFirehoseS3KeyPrefix:
+        default: S3 prefix for CTR Log Data
+      CtrFirehoseS3Compression:
+        default: Select Compression Type for CTR Logs
+      ContactFlowS3KeyPrefix:
+        default: S3 prefix for Contact Flow Log Data
+      ESEnable:
+        default: Enable Elasticsearch/Kibana
+      ESName:
+        default: Elasticsearch Domain
+      ESInstanceType:
+        default: Elasticsearch Type
+      ESInstanceVersion:
+        default: Elasticsearch Version
+Parameters:
+  QSS3BucketName:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    Default: aws-quickstart
+    Description: "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    Default: quickstart-stratus360-connect-with-service/
+    Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
+    Type: String
+  ContactFlowLogGroup:
+    Default: ""
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
+    Type: String
+  AmznConnectOutputBucketName:
+    AllowedPattern: "^[0-9a-z][0-9a-z-]*[0-9a-z]$"
+    ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or a hypen, and must start and end with a number or a lowercase letter."
+    Default: quickstart-stratus360-connect-with-service-bucket
+    Description: Name of bucket to save logs and lambda code to.
+    MaxLength: 63
+    MinLength: 3
+    Type: String
+  AgentFirehoseS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: logs/agent-firehose-output/
+    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Type: String
+  AgentFirehoseS3Compression:
+    AllowedValues:
+      - "UNCOMPRESSED"
+      - "GZIP"
+      - "ZIP"
+      - "Snappy"
+    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
+    Default: GZIP
+    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
+    Type: String
+  CtrFirehoseS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: logs/ctr-firehose-output/
+    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Type: String
+  CtrFirehoseS3Compression:
+    AllowedValues:
+      - "UNCOMPRESSED"
+      - "GZIP"
+      - "ZIP"
+      - "Snappy"
+    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
+    Default: GZIP
+    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
+    Type: String
+  ContactFlowS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: logs/contactflowlogs-output/
+    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Type: String
+  ESEnable:
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+    Description:
+      Enables Elasticsearch if set true, automatically generating the resources
+      for Kibana/Elasticsearch and points firehose outputs to it.
+    Type: String
+  ESName:
+    AllowedPattern: ^[a-z][a-z0-9-]*$
+    ConstraintDescription:
+      The name must start with a lowercase letter and must be between 3 and 28 characters.
+      Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
+    Default: quickstart-ac-kibana
+    Description: Name of Elasticsearch Domain
+    MaxLength: 28
+    MinLength: 3
+    Type: String
+  ESInstanceType:
+    AllowedValues:
+      - c5.large.elasticsearch
+      - c5.xlarge.elasticsearch
+      - c5.2xlarge.elasticsearch
+      - c5.4xlarge.elasticsearch
+      - c5.9xlarge.elasticsearch
+      - c5.18xlarge.elasticsearch
+      - i3.large.elasticsearch
+      - i3.xlarge.elasticsearch
+      - i3.2xlarge.elasticsearch
+      - i3.4xlarge.elasticsearch
+      - i3.8xlarge.elasticsearch
+      - i3.16xlarge.elasticsearch
+      - m5.large.elasticsearch
+      - m5.xlarge.elasticsearch
+      - m5.2xlarge.elasticsearch
+      - m5.4xlarge.elasticsearch
+      - m5.12xlarge.elasticsearch
+      - r5.large.elasticsearch
+      - r5.xlarge.elasticsearch
+      - r5.2xlarge.elasticsearch
+      - r5.4xlarge.elasticsearch
+      - r5.12xlarge.elasticsearch
+      - t2.small.elasticsearch
+      - t2.medium.elasticsearch
+      - c4.large.elasticsearch
+      - c4.xlarge.elasticsearch
+      - c4.2xlarge.elasticsearch
+      - c4.4xlarge.elasticsearch
+      - c4.8xlarge.elasticsearch
+      - i2.xlarge.elasticsearch
+      - i2.2xlarge.elasticsearch
+      - m4.large.elasticsearch
+      - m4.xlarge.elasticsearch
+      - m4.2xlarge.elasticsearch
+      - m4.4xlarge.elasticsearch
+      - m4.10xlarge.elasticsearch
+      - r4.large.elasticsearch
+      - r4.xlarge.elasticsearch
+      - r4.2xlarge.elasticsearch
+      - r4.4xlarge.elasticsearch
+      - r4.8xlarge.elasticsearch
+      - r4.16xlarge.elasticsearch
+      - m3.medium.elasticsearch
+      - m3.large.elasticsearch
+      - m3.xlarge.elasticsearch
+      - m3.2xlarge.elasticsearch
+      - r3.large.elasticsearch
+      - r3.xlarge.elasticsearch
+      - r3.2xlarge.elasticsearch
+      - r3.4xlarge.elasticsearch
+      - r3.8xlarge.elasticsearch
+    Default: "r5.large.elasticsearch"
+    Description: if ESEnable set true, sets the type/size of instance
+    Type: String
+  ESInstanceVersion:
+    AllowedValues:
+      - 7.1
+      - 6.8
+      - 6.7
+      - 6.5
+      - 6.4
+      - 6.3
+      - 6.2
+      - 6.0
+      - 5.6
+      - 5.5
+      - 5.3
+      - 5.1
+      - 2.3
+      - 1.5
+    Default: 6.2
+    Description: if ESEnable set true, sets the Elasticsearch version
+    Type: Number
+Conditions:
+  ESEnableBool: !Equals
+    - Ref: ESEnable
+    - "true"
+  ESDisableBool: !Not [Condition: ESEnableBool]
+Outputs:
+  AgentOutputLocation:
+    Description: S3 agent logs location.
+    Export:
+      Name: !Sub ${AWS::StackName}-AgentLogsS3Uri
+    Value:
+      Fn::Join:
+        - ""
+        - - s3://
+          - Ref: AmznConnectOutputBucketName
+          - /
+          - Ref: AgentFirehoseS3KeyPrefix
+  CtrOutputLocation:
+    Description: S3 call trace records location.
+    Export:
+      Name: !Sub ${AWS::StackName}-CtrLogsS3Uri
+    Value:
+      Fn::Join:
+        - ""
+        - - s3://
+          - Ref: AmznConnectOutputBucketName
+          - /
+          - Ref: CtrFirehoseS3KeyPrefix
+  ContactFlowLogsOutputLocation:
+    Description: S3 contact flow logs location.
+    Export:
+      Name: !Sub ${AWS::StackName}-ContactFlowS3Uri
+    Value:
+      Fn::Join:
+        - ""
+        - - s3://
+          - Ref: AmznConnectOutputBucketName
+          - /
+          - Ref: ContactFlowS3KeyPrefix
+Resources:
+  CopyLambdaSourceBucket:
+    Type: AWS::S3::Bucket
+  CopyZipsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}submodules/lambda-copyzips/templates/copy-zips.template.yaml
+      Parameters:
+        DestinationBucket: !Ref CopyLambdaSourceBucket
+        QSS3BucketName: !Ref "QSS3BucketName"
+        QSS3KeyPrefix: !Ref "QSS3KeyPrefix"
+        SourceObjects:
+          Fn::Join:
+            - ","
+            - - functions/deploy-es-true-cwl-logs.zip
+              - functions/deploy-es-false-cwl-logs.zip
+              - functions/clean-contact-flow.zip
+  ESSetupStack:
+    Condition: ESEnableBool
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-true.template.yaml
+      Parameters:
+        QSS3BucketName:
+          Ref: QSS3BucketName
+        QSS3KeyPrefix:
+          Ref: QSS3KeyPrefix
+        ContactFlowLogGroup:
+          Ref: ContactFlowLogGroup
+        AgentFirehoseS3KeyPrefix:
+          Ref: AgentFirehoseS3KeyPrefix
+        AgentFirehoseS3Compression:
+          Ref: AgentFirehoseS3Compression
+        CtrFirehoseS3KeyPrefix:
+          Ref: CtrFirehoseS3KeyPrefix
+        CtrFirehoseS3Compression:
+          Ref: CtrFirehoseS3Compression
+        ContactFlowS3KeyPrefix:
+          Ref: ContactFlowS3KeyPrefix
+        AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
+        CtrKinesisStreamArn: !GetAtt CtrKinesisStream.Arn
+        AmznConnectOutputBucketName:
+          Ref: AmznConnectOutputBucketName
+        AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
+        CopyLambdaSourceBucket:
+          Ref: CopyLambdaSourceBucket
+        ESName:
+          Ref: ESName
+        ESInstanceType:
+          Ref: ESInstanceType
+        ESInstanceVersion:
+          Ref: ESInstanceVersion
+  SetupStack:
+    Condition: ESDisableBool
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-false.template.yaml
+      Parameters:
+        QSS3BucketName:
+          Ref: QSS3BucketName
+        QSS3KeyPrefix:
+          Ref: QSS3KeyPrefix
+        ContactFlowLogGroup:
+          Ref: ContactFlowLogGroup
+        AgentFirehoseS3KeyPrefix:
+          Ref: AgentFirehoseS3KeyPrefix
+        AgentFirehoseS3Compression:
+          Ref: AgentFirehoseS3Compression
+        CtrFirehoseS3KeyPrefix:
+          Ref: CtrFirehoseS3KeyPrefix
+        CtrFirehoseS3Compression:
+          Ref: CtrFirehoseS3Compression
+        ContactFlowS3KeyPrefix:
+          Ref: ContactFlowS3KeyPrefix
+        AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
+        CtrKinesisStreamArn: !GetAtt CtrKinesisStream.Arn
+        AmznConnectOutputBucketName:
+          Ref: AmznConnectOutputBucketName
+        AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
+        CopyLambdaSourceBucket:
+          Ref: CopyLambdaSourceBucket
+  AgentKinesisStream:
+    Properties:
+      ShardCount: 2
+    Type: AWS::Kinesis::Stream
+  CtrKinesisStream:
+    Properties:
+      ShardCount: 2
+    Type: AWS::Kinesis::Stream
+  AmznConnectOutputBucket:
+    Properties:
+      BucketName:
+        Ref: AmznConnectOutputBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: test/
+            Function: !GetAtt CleanContactFlowLambda.Arn
+    Type: AWS::S3::Bucket
+  CleanContactFlowLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CopyZipsStack
+    Properties:
+      Code:
+        S3Bucket: !Ref CopyLambdaSourceBucket
+        S3Key: !Sub ${QSS3KeyPrefix}functions/clean-contact-flow.zip
+      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
+      Environment:
+        Variables:
+          TESTING: temp
+      Handler: cleanContactFlow.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt CleanContactFlowLambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 300
+  CleanContactFlowLambdaInvoke:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CleanContactFlowLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${AmznConnectOutputBucketName}
+    Type: AWS::Lambda::Permission
+  CleanContactFlowLambdaRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyName: cleanContactFlowPolicy
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:s3:::${AmznConnectOutputBucketName}
+                  - !Sub arn:aws:s3:::${AmznConnectOutputBucketName}/*
+            Version: 2012-10-17
+    Type: AWS::IAM::Role

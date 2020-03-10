@@ -1,0 +1,13 @@
+project:
+  name: qs-connect
+  regions:
+  - ap-southeast-1
+  - us-east-1
+  - us-west-2
+  - eu-central-1
+tests:
+  default:
+    template: ./templates/testing.template.yaml
+    parameter_input: ./ci/testing_input.json
+    regions:
+    - us-west-1
