@@ -357,7 +357,7 @@ Resources:
       Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
       Environment:
         Variables:
-          TESTING: temp
+          SSM_PARAM_PATH: /connect/quickstart/s360/cleancontactflow/config
       Handler: cleanContactFlow.lambda_handler
       MemorySize: 128
       Role: !GetAtt CleanContactFlowLambdaRole.Arn
@@ -381,8 +381,10 @@ Resources:
                 - lambda.amazonaws.com
         Version: 2012-10-17
       Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       Policies:
-        - PolicyName: cleanContactFlowPolicy
+        - PolicyName: ReadFromBucket
           PolicyDocument:
             Statement:
               - Action:
@@ -393,4 +395,20 @@ Resources:
                   - !Sub arn:aws:s3:::${AmznConnectOutputBucketName}
                   - !Sub arn:aws:s3:::${AmznConnectOutputBucketName}/*
             Version: 2012-10-17
+        - PolicyName: ReadParam
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - ssm:GetParameter
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/connect/quickstart/s360/cleancontactflow/config
+            Version: 2012-10-17
     Type: AWS::IAM::Role
+  CleanContactFlowLambdaParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: "/connect/quickstart/s360/cleancontactflow/config"
+      Description: "Config for clean contact flow script"
+      Type: String
+      Value: '{"invert":false,"prioritize_depth":false,"set_loop_behaviour":false,"set_spread_behaviour":true,"depth_difference":250,"width_difference":250,"depth_offset":25,"width_offset":25,"entry":{"x":20,"y":500}}'
