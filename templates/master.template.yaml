@@ -248,7 +248,8 @@ Mappings:
   MakeRefTableConstants:
     InstanceValues:
       MakeRefTableDatabaseName: "quickstart-ref-database"
-      MakeRefTableName: "quickstart-ref-table"
+      MakeRefTableName: "quickstart-ref-table-ctr"
+      MakeRefTableAgentName: "quickstart-ref-table-agent"
       MakeRefTableParamName: "/connect/quickstart/s360/MakeRefTable/config"
 Resources:
   CopyLambdaSourceBucket:
@@ -507,3 +508,48 @@ Resources:
       Description: "Config for clean MakeRefTable script"
       Type: String
       Value: "att1,att2,att3"
+  RefTable:
+    DependsOn: RefTableDatabase
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      TableInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+        Description: Reference table for Amazon Connect data logging solution
+  RefTableAgent:
+    DependsOn: RefTableDatabase
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      TableInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+        Description: Reference table for Amazon Connect data logging solution
+        StorageDescriptor: 
+          Columns:
+            - Name: awsaccountid
+              Type: string
+            - Name: agentarn
+              Type: string
+            - Name: currentagentsnapshot
+              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
+            - Name: eventid
+              Type: string
+            - Name: eventtimestamp
+              Type: string
+            - Name: eventtype
+              Type: string
+            - Name: instancearn
+              Type: string
+            - Name: previousagentsnapshot
+              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
+            - Name: version
+              Type: string
+  RefTableDatabase:
+    Type: AWS::Glue::Database
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+        Description: Reference database for Amazon Connect data logging solution
