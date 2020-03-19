@@ -59,7 +59,7 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancealiasname}".
     Type: String
   AmznConnectOutputBucketName:
     AllowedPattern: "^[0-9a-z][0-9a-z-]*[0-9a-z]$"
@@ -298,11 +298,11 @@ Resources:
           Ref: CopyLambdaSourceBucket
   AgentKinesisStream:
     Properties:
-      ShardCount: 2
+      ShardCount: 1
     Type: AWS::Kinesis::Stream
   CtrKinesisStream:
     Properties:
-      ShardCount: 2
+      ShardCount: 1
     Type: AWS::Kinesis::Stream
   AmznConnectOutputBucket:
     Properties:
