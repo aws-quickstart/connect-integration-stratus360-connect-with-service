@@ -273,9 +273,14 @@ Resources:
           Ref: QSS3KeyPrefix
         ContactFlowLogGroup:
           Ref: ContactFlowLogGroup
-        AgentFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
-        CtrFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
-        ContactFlowS3KeyPrefix: !Sub "${LogS3KeyPrefix}${ContactFlowS3KeyPrefix}/"
+        LogS3KeyPrefix:
+          Ref: LogS3KeyPrefix
+        AgentFirehoseS3KeyPrefix:
+          Ref: AgentFirehoseS3KeyPrefix
+        CtrFirehoseS3KeyPrefix:
+          Ref: CtrFirehoseS3KeyPrefix
+        ContactFlowS3KeyPrefix:
+          Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
         CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:
@@ -302,9 +307,14 @@ Resources:
           Ref: QSS3KeyPrefix
         ContactFlowLogGroup:
           Ref: ContactFlowLogGroup
-        AgentFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
-        CtrFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
-        ContactFlowS3KeyPrefix: !Sub "${LogS3KeyPrefix}${ContactFlowS3KeyPrefix}/"
+        LogS3KeyPrefix:
+          Ref: LogS3KeyPrefix
+        AgentFirehoseS3KeyPrefix:
+          Ref: AgentFirehoseS3KeyPrefix
+        CtrFirehoseS3KeyPrefix:
+          Ref: CtrFirehoseS3KeyPrefix
+        ContactFlowS3KeyPrefix:
+          Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
         CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:

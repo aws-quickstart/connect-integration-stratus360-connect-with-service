@@ -16,6 +16,12 @@ Parameters:
     Default: ""
     Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
     Type: String
+  LogS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*/$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Default: logs/
+    Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Type: String
   AgentFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
@@ -163,7 +169,7 @@ Resources:
             IntervalInSeconds: 60
             SizeInMBs: 1
           CompressionFormat: GZIP
-          Prefix: !Ref AgentFirehoseS3KeyPrefix
+          Prefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
           RoleARN:
             Fn::GetAtt:
               - FirehoseRole
@@ -204,7 +210,7 @@ Resources:
             IntervalInSeconds: 60
             SizeInMBs: 1
           CompressionFormat: GZIP
-          Prefix: !Ref CtrFirehoseS3KeyPrefix
+          Prefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
           RoleARN:
             Fn::GetAtt:
               - FirehoseRole
@@ -236,7 +242,7 @@ Resources:
               - DomainEndpoint
           S3_BUCKET:
             Ref: AmznConnectOutputBucketName
-          S3_PREFIX: !Ref ContactFlowS3KeyPrefix
+          S3_PREFIX: !Sub "${LogS3KeyPrefix}$ContactFlowS3KeyPrefix}/"
       Handler: index.handler
       MemorySize: 128
       Role:

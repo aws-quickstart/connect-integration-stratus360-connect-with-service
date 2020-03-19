@@ -16,6 +16,12 @@ Parameters:
     Default: ""
     Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
     Type: String
+  LogS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*/$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Default: logs/
+    Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Type: String
   AgentFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
@@ -80,7 +86,7 @@ Resources:
             VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
-        Prefix: !Ref AgentFirehoseS3KeyPrefix
+        Prefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
         CompressionFormat: UNCOMPRESSED 
         BufferingHints:
           IntervalInSeconds: 60
@@ -119,7 +125,7 @@ Resources:
             VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
-        Prefix: !Ref CtrFirehoseS3KeyPrefix
+        Prefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
         CompressionFormat: UNCOMPRESSED 
         BufferingHints:
           IntervalInSeconds: 60
@@ -150,7 +156,7 @@ Resources:
         Variables:
           S3_BUCKET:
             Ref: AmznConnectOutputBucketName
-          S3_PREFIX: !Ref ContactFlowS3KeyPrefix
+          S3_PREFIX: !Sub "${LogS3KeyPrefix}$ContactFlowS3KeyPrefix}/"
       Handler: index.handler
       MemorySize: 128
       Role:
@@ -492,4 +498,46 @@ Resources:
       DatabaseInput: 
         Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
         Description: Reference database for Amazon Connect data logging solution
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      Description: Crawler for Amazon Connect QuickStart Logging solution
+      Role: !GetAtt GlueCrawlerRole.Arn
+      Schedule: 
+        ScheduleExpression: "cron(0/5 * * * ? *)"
+      Targets: 
+        S3Targets:
+          - Path: !Sub "${AmznConnectOutputBucketName}/${LogS3KeyPrefix}"
+  GlueCrawlerRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyName: Quickstart-Connect-Crawler-S3-Perms
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                Effect: Allow
+                Resource:
+                  - Ref: AmznConnectOutputBucketArn
+                  - Fn::Join:
+                      - /
+                      - - Ref: AmznConnectOutputBucketArn
+                        - "*"
+            Version: 2012-10-17
+    Type: AWS::IAM::Role
 Transform: AWS::Serverless-2016-10-31
