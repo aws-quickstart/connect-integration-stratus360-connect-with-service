@@ -7,10 +7,10 @@ Metadata:
           default: Logs/Firehose Configuration
         Parameters:
           - AmznConnectOutputBucketName
+          - CtrDataStreamEnable
+          - LogS3KeyPrefix
           - AgentFirehoseS3KeyPrefix
-          - AgentFirehoseS3Compression
           - CtrFirehoseS3KeyPrefix
-          - CtrFirehoseS3Compression
           - ContactFlowS3KeyPrefix
           - ContactFlowLogGroup
       - Label:
@@ -30,6 +30,10 @@ Metadata:
         default: Amazon Connect CloudWatch Log Group
       AmznConnectOutputBucketName:
         default: S3 Deployment Bucket Name
+      CtrDataStreamEnable:
+        default: Enable CTR Data Stream 
+      LogS3KeyPrefix:
+        default: S3 prefix for All Log Data
       AgentFirehoseS3KeyPrefix:
         default: S3 prefix for Agent Log Data
       CtrFirehoseS3KeyPrefix:
@@ -59,39 +63,54 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancealiasname}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
     Type: String
   AmznConnectOutputBucketName:
     AllowedPattern: "^[0-9a-z][0-9a-z-]*[0-9a-z]$"
     ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or a hypen, and must start and end with a number or a lowercase letter."
     Default: quickstart-stratus360-connect-with-service-bucket
-    Description: Name of bucket to save logs and lambda code to.
+    Description: Name of bucket to save logs.
     MaxLength: 63
     MinLength: 3
     Type: String
+  LogS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*/$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Default: logs/
+    Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Type: String
   AgentFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
-    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/agent-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
+    Default: agent-firehose-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
     Type: String
   CtrFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/ctr-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: ctr-firehose-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
     Type: String
   ContactFlowS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/contactflowlogs-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: contactflowlogs-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Type: String
+  CtrDataStreamEnable:
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+    Description:
+      Enables CTR Kinesis Data Stream. Disabling will make it so that the CTR firehose is on DirectPut instead of from the Kinesis Data stream.
+      Enable only if you need a the Data Stream for the CTR logs (such as the the salesforce CTI adapter). 
     Type: String
   ESEnable:
     AllowedValues:
       - "true"
       - "false"
-    Default: "true"
+    Default: "false"
     Description:
       Enables Elasticsearch if set true, automatically generating the resources
       for Kibana/Elasticsearch and points firehose outputs to it.
@@ -102,7 +121,7 @@ Parameters:
       The name must start with a lowercase letter and must be between 3 and 28 characters.
       Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
     Default: quickstart-ac-kibana
-    Description: Name of Elasticsearch Domain
+    Description: if Elasticsearch enabled, sets the name of the instance
     MaxLength: 28
     MinLength: 3
     Type: String
@@ -160,7 +179,7 @@ Parameters:
       - r3.4xlarge.elasticsearch
       - r3.8xlarge.elasticsearch
     Default: "r5.large.elasticsearch"
-    Description: if ESEnable set true, sets the type/size of instance
+    Description: if Elasticsearch enabled, sets the type/size of instance
     Type: String
   ESInstanceVersion:
     AllowedValues:
@@ -179,13 +198,16 @@ Parameters:
       - 2.3
       - 1.5
     Default: 6.2
-    Description: if ESEnable set true, sets the Elasticsearch version
+    Description: if Elasticsearch enabled, sets the Elasticsearch version
     Type: Number
 Conditions:
   ESEnableBool: !Equals
     - Ref: ESEnable
     - "true"
   ESDisableBool: !Not [Condition: ESEnableBool]
+  CtrDataStreamEnableBool: !Equals
+    - Ref: ESEnable
+    - "true"
 Outputs:
   AgentOutputLocation:
     Description: S3 agent logs location.
@@ -251,14 +273,11 @@ Resources:
           Ref: QSS3KeyPrefix
         ContactFlowLogGroup:
           Ref: ContactFlowLogGroup
-        AgentFirehoseS3KeyPrefix:
-          Ref: AgentFirehoseS3KeyPrefix
-        CtrFirehoseS3KeyPrefix:
-          Ref: CtrFirehoseS3KeyPrefix
-        ContactFlowS3KeyPrefix:
-          Ref: ContactFlowS3KeyPrefix
+        AgentFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
+        CtrFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
+        ContactFlowS3KeyPrefix: !Sub "${LogS3KeyPrefix}${ContactFlowS3KeyPrefix}/"
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
-        CtrKinesisStreamArn: !GetAtt CtrKinesisStream.Arn
+        CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:
           Ref: AmznConnectOutputBucketName
         AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
@@ -283,14 +302,11 @@ Resources:
           Ref: QSS3KeyPrefix
         ContactFlowLogGroup:
           Ref: ContactFlowLogGroup
-        AgentFirehoseS3KeyPrefix:
-          Ref: AgentFirehoseS3KeyPrefix
-        CtrFirehoseS3KeyPrefix:
-          Ref: CtrFirehoseS3KeyPrefix
-        ContactFlowS3KeyPrefix:
-          Ref: ContactFlowS3KeyPrefix
+        AgentFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
+        CtrFirehoseS3KeyPrefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
+        ContactFlowS3KeyPrefix: !Sub "${LogS3KeyPrefix}${ContactFlowS3KeyPrefix}/"
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
-        CtrKinesisStreamArn: !GetAtt CtrKinesisStream.Arn
+        CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:
           Ref: AmznConnectOutputBucketName
         AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
@@ -301,6 +317,7 @@ Resources:
       ShardCount: 1
     Type: AWS::Kinesis::Stream
   CtrKinesisStream:
+    Condition: CtrDataStreamEnableBool
     Properties:
       ShardCount: 1
     Type: AWS::Kinesis::Stream
@@ -325,7 +342,7 @@ Resources:
       Code:
         S3Bucket: !Ref CopyLambdaSourceBucket
         S3Key: !Sub ${QSS3KeyPrefix}functions/clean-contact-flow.zip
-      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
+      Description: Lambda cleans a contact flow json file when placed in an s3 bucket. It will output in the a directory 'output' one up from it's current directory.
       Environment:
         Variables:
           SSM_PARAM_PATH: /connect/quickstart/s360/cleancontactflow/config

@@ -134,6 +134,7 @@ Conditions:
     - !Equals
       - Ref: ContactFlowLogGroup
       - ""
+  CtrDataStreamEnableBool: !Not [!Equals [!Ref CtrKinesisStreamArn, ""]]
 Resources:
   AgentFirehose:
     Properties:
@@ -178,7 +179,7 @@ Resources:
     Type: AWS::KinesisFirehose::DeliveryStream
   CtrFirehose:
     Properties:
-      DeliveryStreamType: KinesisStreamAsSource
+      DeliveryStreamType: !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
       ElasticsearchDestinationConfiguration:
         BufferingHints:
           IntervalInSeconds: 60
@@ -209,13 +210,16 @@ Resources:
               - FirehoseRole
               - Arn
         TypeName: AmznConnect
-      KinesisStreamSourceConfiguration:
-        KinesisStreamARN:
-          Ref: CtrKinesisStreamArn
-        RoleARN:
-          Fn::GetAtt:
-            - FirehoseRole
-            - Arn
+      Fn::If:
+        - CtrDataStreamEnableBool
+        - KinesisStreamSourceConfiguration:
+            KinesisStreamARN:
+              Ref: CtrKinesisStreamArn
+            RoleARN:
+              Fn::GetAtt:
+                - FirehoseRole
+                - Arn
+        - !Ref "AWS::NoValue"
     Type: AWS::KinesisFirehose::DeliveryStream
   CwLogsToElasticsearchLambda:
     Properties:
@@ -368,7 +372,7 @@ Resources:
                 Effect: Allow
                 Resource:
                   - Ref: AgentKinesisStreamArn
-                  - Ref: CtrKinesisStreamArn
+                  - !If [CtrDataStreamEnableBool, !Ref CtrKinesisStreamArn, !Ref "AWS::NoValue"]
               - Action:
                   - kms:Decrypt
                 Condition:

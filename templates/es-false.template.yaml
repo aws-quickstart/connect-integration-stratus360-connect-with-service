@@ -49,6 +49,7 @@ Conditions:
     - !Equals
       - Ref: ContactFlowLogGroup
       - ""
+  CtrDataStreamEnableBool: !Not [!Equals [!Ref CtrKinesisStreamArn, ""]]
 Mappings:
   MakeRefTableConstants:
     InstanceValues:
@@ -99,7 +100,7 @@ Resources:
   CtrFirehose:
     DependsOn: RefTableAgent
     Properties:
-      DeliveryStreamType: KinesisStreamAsSource
+      DeliveryStreamType: !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
       ExtendedS3DestinationConfiguration:
         DataFormatConversionConfiguration:
           Enabled: True
@@ -128,12 +129,15 @@ Resources:
             - FirehoseRole
             - Arn
       KinesisStreamSourceConfiguration:
-        KinesisStreamARN:
-          Ref: CtrKinesisStreamArn
-        RoleARN:
-          Fn::GetAtt:
-            - FirehoseRole
-            - Arn
+        Fn::If:
+          - CtrDataStreamEnableBool
+          - KinesisStreamARN:
+              Ref: CtrKinesisStreamArn
+            RoleARN:
+              Fn::GetAtt:
+                - FirehoseRole
+                - Arn
+          - !Ref "AWS::NoValue"
     Type: AWS::KinesisFirehose::DeliveryStream
   CwLogsToS3Lambda:
     Properties:
@@ -272,7 +276,7 @@ Resources:
                 Effect: Allow
                 Resource:
                   - Ref: AgentKinesisStreamArn
-                  - Ref: CtrKinesisStreamArn
+                  - !If [CtrDataStreamEnableBool, !Ref CtrKinesisStreamArn, !Ref "AWS::NoValue"]
               - Action:
                   - kms:Decrypt
                 Condition:
