@@ -14,7 +14,7 @@ Metadata:
           - ContactFlowS3KeyPrefix
           - ContactFlowLogGroup
       - Label:
-          default: Kibana Configuration
+          default: Elasticsearch/Kibana Configuration
         Parameters:
           - ESEnable
           - ESName
@@ -32,12 +32,8 @@ Metadata:
         default: S3 Deployment Bucket Name
       AgentFirehoseS3KeyPrefix:
         default: S3 prefix for Agent Log Data
-      AgentFirehoseS3Compression:
-        default: Select Compression Type for Agent Logs
       CtrFirehoseS3KeyPrefix:
         default: S3 prefix for CTR Log Data
-      CtrFirehoseS3Compression:
-        default: Select Compression Type for CTR Logs
       ContactFlowS3KeyPrefix:
         default: S3 prefix for Contact Flow Log Data
       ESEnable:
@@ -79,31 +75,11 @@ Parameters:
     Default: logs/agent-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Type: String
-  AgentFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: logs/ctr-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Type: String
-  CtrFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
@@ -244,13 +220,6 @@ Outputs:
           - Ref: AmznConnectOutputBucketName
           - /
           - Ref: ContactFlowS3KeyPrefix
-Mappings:
-  MakeRefTableConstants:
-    InstanceValues:
-      MakeRefTableDatabaseName: "quickstart-ref-database"
-      MakeRefTableName: "quickstart-ref-table-ctr"
-      MakeRefTableAgentName: "quickstart-ref-table-agent"
-      MakeRefTableParamName: "/connect/quickstart/s360/MakeRefTable/config"
 Resources:
   CopyLambdaSourceBucket:
     Type: AWS::S3::Bucket
@@ -265,12 +234,13 @@ Resources:
         SourceObjects:
           Fn::Join:
             - ","
-            - - functions/deploy-es-true-cwl-logs.zip
-              - functions/deploy-es-false-cwl-logs.zip
+            - - !If [ESEnableBool, functions/deploy-es-true-cwl-logs.zip, !Ref "AWS::NoValue"]
+              - !If [ESDisableBool, functions/deploy-es-false-cwl-logs.zip, !Ref "AWS::NoValue"]
               - functions/clean-contact-flow.zip
               - functions/create-ref-table.zip
   ESSetupStack:
     Condition: ESEnableBool
+    DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-true.template.yaml
@@ -283,12 +253,8 @@ Resources:
           Ref: ContactFlowLogGroup
         AgentFirehoseS3KeyPrefix:
           Ref: AgentFirehoseS3KeyPrefix
-        AgentFirehoseS3Compression:
-          Ref: AgentFirehoseS3Compression
         CtrFirehoseS3KeyPrefix:
           Ref: CtrFirehoseS3KeyPrefix
-        CtrFirehoseS3Compression:
-          Ref: CtrFirehoseS3Compression
         ContactFlowS3KeyPrefix:
           Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
@@ -306,6 +272,7 @@ Resources:
           Ref: ESInstanceVersion
   SetupStack:
     Condition: ESDisableBool
+    DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-false.template.yaml
@@ -318,12 +285,8 @@ Resources:
           Ref: ContactFlowLogGroup
         AgentFirehoseS3KeyPrefix:
           Ref: AgentFirehoseS3KeyPrefix
-        AgentFirehoseS3Compression:
-          Ref: AgentFirehoseS3Compression
         CtrFirehoseS3KeyPrefix:
           Ref: CtrFirehoseS3KeyPrefix
-        CtrFirehoseS3Compression:
-          Ref: CtrFirehoseS3Compression
         ContactFlowS3KeyPrefix:
           Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
@@ -420,136 +383,3 @@ Resources:
       Description: "Config for clean contact flow script"
       Type: String
       Value: '{"invert":false,"prioritize_depth":false,"set_loop_behaviour":false,"set_spread_behaviour":true,"depth_difference":250,"width_difference":250,"depth_offset":25,"width_offset":25,"entry":{"x":20,"y":500}}'
-  MakeRefTableLambda:
-    Type: AWS::Lambda::Function
-    DependsOn: CopyZipsStack
-    Properties:
-      Code:
-        S3Bucket: !Ref CopyLambdaSourceBucket
-        S3Key: !Sub ${QSS3KeyPrefix}functions/create-ref-table.zip
-      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
-      Environment:
-        Variables:
-          REF_DATABASE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName] 
-          REF_TABLE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName] 
-          SSM_PARAM_ATTRIBUTES_PATH: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName] 
-      Handler: create-ref-table.lambda_handler
-      MemorySize: 128
-      Role: !GetAtt MakeRefTableLambdaRole.Arn
-      Runtime: python3.8
-      Timeout: 10
-  MakeRefTableLambdaCWRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: Trigger MakeRefTableLambda upon param update
-      EventPattern: 
-        !Sub 
-          - '{"source":["aws.ssm"],"detail-type":["Parameter Store Change"],"detail":{"name":["${MakeRefTableParamNameSub}"],"operation":["Create","Update","LabelParameterVersion"]}}'
-          - MakeRefTableParamNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
-      Targets:
-        - Arn: !GetAtt MakeRefTableLambda.Arn
-          Id: !Ref MakeRefTableLambda
-  MakeRefTableLambdaInvoke:
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MakeRefTableLambda
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt MakeRefTableLambdaCWRule.Arn
-    Type: AWS::Lambda::Permission
-  MakeRefTableLambdaRole:
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-        Version: 2012-10-17
-      Path: /
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-      Policies:
-        - PolicyName: Quickstart-Connect-Read-Params-Ref-Glue-Table-Perms
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - ssm:GetParameter
-                Effect: Allow
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/connect/quickstart/s360/MakeRefTable/config
-            Version: 2012-10-17
-        - PolicyName: Quickstart-Connect-Create-Ref-Glue-Table-Perms
-          PolicyDocument:
-            Statement:
-              - Action:
-                  - glue:CreateTable
-                  - glue:GetTables
-                  - glue:UpdateTable
-                  - glue:GetDatabases
-                  - glue:CreateDatabase
-                Effect: Allow
-                Resource:
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
-                  - !Sub 
-                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${MakeRefTableDatabaseNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                  - !Sub 
-                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                      MakeRefTableNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
-            Version: 2012-10-17
-    Type: AWS::IAM::Role
-  MakeRefTableParam:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: "/connect/quickstart/s360/MakeRefTable/config"
-      Description: "Config for clean MakeRefTable script"
-      Type: String
-      Value: "att1,att2,att3"
-  RefTable:
-    DependsOn: RefTableDatabase
-    Type: AWS::Glue::Table
-    Properties: 
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-      TableInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
-        Description: Reference table for Amazon Connect data logging solution
-  RefTableAgent:
-    DependsOn: RefTableDatabase
-    Type: AWS::Glue::Table
-    Properties: 
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-      TableInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
-        Description: Reference table for Amazon Connect data logging solution
-        StorageDescriptor: 
-          Columns:
-            - Name: awsaccountid
-              Type: string
-            - Name: agentarn
-              Type: string
-            - Name: currentagentsnapshot
-              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
-            - Name: eventid
-              Type: string
-            - Name: eventtimestamp
-              Type: string
-            - Name: eventtype
-              Type: string
-            - Name: instancearn
-              Type: string
-            - Name: previousagentsnapshot
-              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
-            - Name: version
-              Type: string
-  RefTableDatabase:
-    Type: AWS::Glue::Database
-    Properties: 
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-        Description: Reference database for Amazon Connect data logging solution

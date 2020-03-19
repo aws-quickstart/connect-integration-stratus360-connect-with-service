@@ -22,31 +22,11 @@ Parameters:
     Default: logs/agent-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Type: String
-  AgentFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: logs/ctr-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Type: String
-  CtrFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
@@ -181,7 +161,7 @@ Resources:
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 1
-          CompressionFormat: !Ref AgentFirehoseS3Compression
+          CompressionFormat: GZIP
           Prefix: !Ref AgentFirehoseS3KeyPrefix
           RoleARN:
             Fn::GetAtt:
@@ -222,7 +202,7 @@ Resources:
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 1
-          CompressionFormat: !Ref CtrFirehoseS3Compression
+          CompressionFormat: GZIP
           Prefix: !Ref CtrFirehoseS3KeyPrefix
           RoleARN:
             Fn::GetAtt:

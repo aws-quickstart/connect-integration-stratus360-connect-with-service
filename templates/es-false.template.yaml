@@ -22,31 +22,11 @@ Parameters:
     Default: logs/agent-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Type: String
-  AgentFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: logs/ctr-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Type: String
-  CtrFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: "GZIP"
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
@@ -69,18 +49,41 @@ Conditions:
     - !Equals
       - Ref: ContactFlowLogGroup
       - ""
+Mappings:
+  MakeRefTableConstants:
+    InstanceValues:
+      MakeRefTableDatabaseName: "quickstart-ref-database"
+      MakeRefTableName: "quickstart-ref-table-ctr"
+      MakeRefTableAgentName: "quickstart-ref-table-agent"
+      MakeRefTableParamName: "/connect/quickstart/s360/MakeRefTable/config"
 Resources:
   AgentFirehose:
+    DependsOn: RefTableAgent
     Properties:
       DeliveryStreamType: KinesisStreamAsSource
-      S3DestinationConfiguration:
+      ExtendedS3DestinationConfiguration:
+        DataFormatConversionConfiguration: 
+          Enabled: True
+          InputFormatConfiguration:
+            Deserializer: 
+              OpenXJsonSerDe: {}
+          OutputFormatConfiguration:
+            Serializer: 
+              ParquetSerDe: {}
+          SchemaConfiguration:
+            CatalogId: !Ref "AWS::AccountId"
+            DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+            Region: !Ref "AWS::Region"
+            RoleARN: !GetAtt FirehoseRole.Arn
+            TableName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+            VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
         Prefix: !Ref AgentFirehoseS3KeyPrefix
-        CompressionFormat: !Ref AgentFirehoseS3Compression
+        CompressionFormat: UNCOMPRESSED 
         BufferingHints:
           IntervalInSeconds: 60
-          SizeInMBs: 1
+          SizeInMBs: 64
         RoleARN:
           Fn::GetAtt:
             - FirehoseRole
@@ -94,16 +97,32 @@ Resources:
             - Arn
     Type: AWS::KinesisFirehose::DeliveryStream
   CtrFirehose:
+    DependsOn: RefTableAgent
     Properties:
       DeliveryStreamType: KinesisStreamAsSource
-      S3DestinationConfiguration:
+      ExtendedS3DestinationConfiguration:
+        DataFormatConversionConfiguration:
+          Enabled: True
+          InputFormatConfiguration:
+            Deserializer: 
+              OpenXJsonSerDe: {}
+          OutputFormatConfiguration:
+            Serializer: 
+              ParquetSerDe: {}
+          SchemaConfiguration:
+            CatalogId: !Ref "AWS::AccountId"
+            DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+            Region: !Ref "AWS::Region"
+            RoleARN: !GetAtt FirehoseRole.Arn
+            TableName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+            VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
         Prefix: !Ref CtrFirehoseS3KeyPrefix
-        CompressionFormat: !Ref CtrFirehoseS3Compression
+        CompressionFormat: UNCOMPRESSED 
         BufferingHints:
           IntervalInSeconds: 60
-          SizeInMBs: 1
+          SizeInMBs: 64
         RoleARN:
           Fn::GetAtt:
             - FirehoseRole
@@ -269,7 +288,204 @@ Resources:
                       - Ref: AgentKinesisStreamArn
                 Effect: Allow
                 Resource: arn:aws:kms:region:accountid:key/%SSE_KEY_ARN%\
+              - Action:
+                  - glue:GetTableVersions
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub 
+                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${MakeRefTableDatabaseNameSub}
+                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+                  - !Sub 
+                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableNameSub}
+                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+                      MakeRefTableNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+                  - !Sub 
+                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableAgentNameSub}
+                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+                      MakeRefTableAgentNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
             Version: 2012-10-17
           PolicyName: amznConnect-firehoseRolePolicy
     Type: AWS::IAM::Role
+  MakeRefTableLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CopyLambdaSourceBucket
+        S3Key: !Sub ${QSS3KeyPrefix}functions/create-ref-table.zip
+      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
+      Environment:
+        Variables:
+          REF_DATABASE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName] 
+          REF_TABLE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName] 
+          SSM_PARAM_ATTRIBUTES_PATH: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName] 
+      Handler: create-ref-table.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt MakeRefTableLambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 10
+  MakeRefTableLambdaCWRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Trigger MakeRefTableLambda upon param update
+      EventPattern: 
+        !Sub 
+          - '{"source":["aws.ssm"],"detail-type":["Parameter Store Change"],"detail":{"name":["${MakeRefTableParamNameSub}"],"operation":["Create","Update","LabelParameterVersion"]}}'
+          - MakeRefTableParamNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
+      Targets:
+        - Arn: !GetAtt MakeRefTableLambda.Arn
+          Id: !Ref MakeRefTableLambda
+  MakeRefTableLambdaInvoke:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MakeRefTableLambda
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MakeRefTableLambdaCWRule.Arn
+    Type: AWS::Lambda::Permission
+  MakeRefTableLambdaRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: Quickstart-Connect-Read-Params-Ref-Glue-Table-Perms
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - ssm:GetParameter
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/connect/quickstart/s360/makereftable/config
+            Version: 2012-10-17
+        - PolicyName: Quickstart-Connect-Create-Ref-Glue-Table-Perms
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - glue:CreateTable
+                  - glue:GetTables
+                  - glue:UpdateTable
+                  - glue:GetDatabases
+                  - glue:CreateDatabase
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub 
+                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${MakeRefTableDatabaseNameSub}
+                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+                  - !Sub 
+                    - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableNameSub}
+                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+                      MakeRefTableNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+            Version: 2012-10-17
+    Type: AWS::IAM::Role
+  MakeRefTableParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: "/connect/quickstart/s360/makereftable/config"
+      Description: "Config for clean MakeRefTable script"
+      Type: String
+      Value: "comma,seperated,call,attribute,list"
+  RefTable:
+    DependsOn: RefTableDatabase
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      TableInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+        Description: Reference table for Amazon Connect data logging solution
+        StorageDescriptor:
+          Columns:
+            - Name: awsaccountid
+              Type: string
+            - Name: awscontacttracerecordformatversion
+              Type: string
+            - Name: agent
+              Type: struct<ARN:string,AfterContactWorkDuration:int,AfterContactWorkEndTimestamp:string,AfterContactWorkStartTimestamp:string,AgentInteractionDuration:int,ConnectedToAgentTimestamp:string,CustomerHoldDuration:int,HierarchyGroups:string,LongestHoldDuration:int,NumberOfHolds:int,RoutingProfile:struct<ARN:string,Name:string>,Username:string>
+            - Name: agentconnectionattempts
+              Type: int
+            - Name: attributes
+              Type: struct<comma:string,seperated:string,call:string,attribute:string,list:string>
+            - Name: channel
+              Type: string
+            - Name: connectedtosystemtimestamp
+              Type: string
+            - Name: contactid
+              Type: string
+            - Name: customerendpoint
+              Type: struct<Address:string,Type:string>
+            - Name: disconnecttimestamp
+              Type: string
+            - Name: initialcontactid
+              Type: string
+            - Name: initiationmethod
+              Type: string
+            - Name: initiationtimestamp
+              Type: string
+            - Name: instancearn
+              Type: string
+            - Name: lastupdatetimestamp
+              Type: string
+            - Name: mediastreams
+              Type: array<struct<Type:string>>
+            - Name: nextcontactid
+              Type: string
+            - Name: previouscontactid
+              Type: string
+            - Name: queue
+              Type: struct<ARN:string,DequeueTimestamp:string,Duration:int,EnqueueTimestamp:string,Name:string>
+            - Name: recording
+              Type: struct<DeletionReason:string,Location:string,Status:string,Type:string>
+            - Name: recordings
+              Type: array<struct<DeletionReason:string,FragmentStartNumber:string,FragmentStopNumber:string,Location:string,MediaStreamType:string,ParticipantType:string,StartTimestamp:string,Status:string,StopTimestamp:string,StorageType:string>>
+            - Name: systemendpoint
+              Type: struct<Address:string,Type:string>
+            - Name: transfercompletedtimestamp
+              Type: string
+            - Name: transferredtoendpoint
+              Type: string
+  RefTableAgent:
+    DependsOn: RefTableDatabase
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      TableInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+        Description: Reference table for Amazon Connect data logging solution
+        StorageDescriptor: 
+          Columns:
+            - Name: awsaccountid
+              Type: string
+            - Name: agentarn
+              Type: string
+            - Name: currentagentsnapshot
+              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
+            - Name: eventid
+              Type: string
+            - Name: eventtimestamp
+              Type: string
+            - Name: eventtype
+              Type: string
+            - Name: instancearn
+              Type: string
+            - Name: previousagentsnapshot
+              Type: struct<AgentStatus:struct<ARN:string,Name:string,StartTimestamp:string>,Configuration:struct<AgentHierarchyGroups:string,FirstName:string,LastName:string,RoutingProfile:struct<ARN:string,Concurrency:array<struct<AvailableSlots:int,Channel:string,MaximumSlots:int>>,DefaultOutboundQueue:struct<ARN:string,Channels:array<string>,Name:string>,InboundQueues:array<struct<ARN:string,Channels:array<string>,Name:string>>,Name:string>,Username:string>,Contacts:array<struct<Channel:string,ConnectedToAgentTimestamp:string,ContactId:string,InitialContactId:string,InitiationMethod:string,Queue:struct<ARN:string,Name:string>,QueueTimestamp:string,State:string,StateStartTimestamp:string>>>
+            - Name: version
+              Type: string
+  RefTableDatabase:
+    Type: AWS::Glue::Database
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+        Description: Reference database for Amazon Connect data logging solution
 Transform: AWS::Serverless-2016-10-31
