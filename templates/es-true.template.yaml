@@ -16,37 +16,23 @@ Parameters:
     Default: ""
     Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
     Type: String
+  LogS3KeyPrefix:
+    AllowedPattern: "^[0-9a-zA-Z-/]*/$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Default: logs/
+    Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
+    Type: String
   AgentFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: logs/agent-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Type: String
-  AgentFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: logs/ctr-firehose-output/
     Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Type: String
-  CtrFirehoseS3Compression:
-    AllowedValues:
-      - "UNCOMPRESSED"
-      - "GZIP"
-      - "ZIP"
-      - "Snappy"
-    ConstraintDescription: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
-    Default: GZIP
-    Description: "Compression type must be one of the following: UNCOMPRESSED | GZIP | ZIP | Snappy"
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
@@ -154,6 +140,7 @@ Conditions:
     - !Equals
       - Ref: ContactFlowLogGroup
       - ""
+  CtrDataStreamEnableBool: !Not [!Equals [!Ref CtrKinesisStreamArn, ""]]
 Resources:
   AgentFirehose:
     Properties:
@@ -181,8 +168,8 @@ Resources:
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 1
-          CompressionFormat: !Ref AgentFirehoseS3Compression
-          Prefix: !Ref AgentFirehoseS3KeyPrefix
+          CompressionFormat: GZIP
+          Prefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
           RoleARN:
             Fn::GetAtt:
               - FirehoseRole
@@ -198,7 +185,7 @@ Resources:
     Type: AWS::KinesisFirehose::DeliveryStream
   CtrFirehose:
     Properties:
-      DeliveryStreamType: KinesisStreamAsSource
+      DeliveryStreamType: !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
       ElasticsearchDestinationConfiguration:
         BufferingHints:
           IntervalInSeconds: 60
@@ -222,20 +209,23 @@ Resources:
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 1
-          CompressionFormat: !Ref CtrFirehoseS3Compression
-          Prefix: !Ref CtrFirehoseS3KeyPrefix
+          CompressionFormat: GZIP
+          Prefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
           RoleARN:
             Fn::GetAtt:
               - FirehoseRole
               - Arn
         TypeName: AmznConnect
-      KinesisStreamSourceConfiguration:
-        KinesisStreamARN:
-          Ref: CtrKinesisStreamArn
-        RoleARN:
-          Fn::GetAtt:
-            - FirehoseRole
-            - Arn
+      Fn::If:
+        - CtrDataStreamEnableBool
+        - KinesisStreamSourceConfiguration:
+            KinesisStreamARN:
+              Ref: CtrKinesisStreamArn
+            RoleARN:
+              Fn::GetAtt:
+                - FirehoseRole
+                - Arn
+        - !Ref "AWS::NoValue"
     Type: AWS::KinesisFirehose::DeliveryStream
   CwLogsToElasticsearchLambda:
     Properties:
@@ -252,7 +242,7 @@ Resources:
               - DomainEndpoint
           S3_BUCKET:
             Ref: AmznConnectOutputBucketName
-          S3_PREFIX: !Ref ContactFlowS3KeyPrefix
+          S3_PREFIX: !Sub "${LogS3KeyPrefix}$ContactFlowS3KeyPrefix}/"
       Handler: index.handler
       MemorySize: 128
       Role:
@@ -388,7 +378,7 @@ Resources:
                 Effect: Allow
                 Resource:
                   - Ref: AgentKinesisStreamArn
-                  - Ref: CtrKinesisStreamArn
+                  - !If [CtrDataStreamEnableBool, !Ref CtrKinesisStreamArn, !Ref "AWS::NoValue"]
               - Action:
                   - kms:Decrypt
                 Condition:
