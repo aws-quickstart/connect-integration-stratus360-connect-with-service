@@ -14,7 +14,7 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
     Type: String
   LogS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*/$"
@@ -23,22 +23,25 @@ Parameters:
     Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
     Type: String
   AgentFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
-    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/agent-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
+    Default: agent-firehose-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   CtrFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/ctr-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: ctr-firehose-output
+    Description: S3 key prefix for the CTR logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   ContactFlowS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/contactflowlogs-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: contactflowlogs-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   AgentKinesisStreamArn:
     Type: String
@@ -151,7 +154,7 @@ Resources:
         Bucket:
           Ref: CopyLambdaSourceBucket
         Key: !Sub ${QSS3KeyPrefix}functions/deploy-es-false-cwl-logs.zip
-      Description: Contact flow Cloudwatch logs to S3
+      Description: Sends Contact flow Cloudwatch logs to S3
       Environment:
         Variables:
           S3_BUCKET:
@@ -323,7 +326,7 @@ Resources:
       Code:
         S3Bucket: !Ref CopyLambdaSourceBucket
         S3Key: !Sub ${QSS3KeyPrefix}functions/create-ref-table.zip
-      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
+      Description: Makes a reference Glue Table with a dumby schema for Firehose to use in order to output in parquet format
       Environment:
         Variables:
           REF_DATABASE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName] 
@@ -400,7 +403,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Properties:
       Name: "/connect/quickstart/s360/makereftable/config"
-      Description: "Config for clean MakeRefTable script"
+      Description: "Config for MakeRefTableLambda script"
       Type: String
       Value: "comma,seperated,call,attribute,list"
   RefTable:
@@ -411,7 +414,7 @@ Resources:
       DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
       TableInput: 
         Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
-        Description: Reference table for Amazon Connect data logging solution
+        Description: Reference table for Amazon Connect data logging solution (CTR Logs)
         StorageDescriptor:
           Columns:
             - Name: awsaccountid
@@ -470,7 +473,7 @@ Resources:
       DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
       TableInput: 
         Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
-        Description: Reference table for Amazon Connect data logging solution
+        Description: Reference table for Amazon Connect data logging solution (Agent Logs)
         StorageDescriptor: 
           Columns:
             - Name: awsaccountid

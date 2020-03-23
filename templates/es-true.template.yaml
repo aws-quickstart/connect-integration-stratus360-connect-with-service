@@ -14,7 +14,7 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Should be of the form "/aws/connect/{instancename}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
     Type: String
   LogS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*/$"
@@ -23,22 +23,25 @@ Parameters:
     Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
     Type: String
   AgentFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
-    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/agent-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
+    ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
+    Default: agent-firehose-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   CtrFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/ctr-firehose-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: ctr-firehose-output
+    Description: S3 key prefix for the CTR logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   ContactFlowS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-/]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
-    Default: logs/contactflowlogs-output/
-    Description: S3 key prefix for the Agent logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
+    Default: contactflowlogs-output
+    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   AgentKinesisStreamArn:
     Type: String
@@ -56,7 +59,7 @@ Parameters:
       The name must start with a lowercase letter and must be between 3 and 28 characters.
       Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
     Default: quickstart-ac-kibana
-    Description: Name of Elasticsearch Domain
+    Description: If Elasticsearch enabled, sets the name of the instance.
     MaxLength: 28
     MinLength: 3
     Type: String
@@ -114,7 +117,7 @@ Parameters:
       - r3.4xlarge.elasticsearch
       - r3.8xlarge.elasticsearch
     Default: "r5.large.elasticsearch"
-    Description: if ESEnable set true, sets the type/size of instance
+    Description: If Elasticsearch enabled, sets the type/size of instance.
     Type: String
   ESInstanceVersion:
     AllowedValues:
@@ -133,7 +136,7 @@ Parameters:
       - 2.3
       - 1.5
     Default: 6.2
-    Description: if ESEnable set true, sets the Elasticsearch version
+    Description: If Elasticsearch enabled, sets the Elasticsearch version.
     Type: Number
 Conditions:
   ContactFlowLogGroupExists: !Not
@@ -216,16 +219,16 @@ Resources:
               - FirehoseRole
               - Arn
         TypeName: AmznConnect
-      Fn::If:
-        - CtrDataStreamEnableBool
-        - KinesisStreamSourceConfiguration:
-            KinesisStreamARN:
+      KinesisStreamSourceConfiguration:
+        Fn::If:
+          - CtrDataStreamEnableBool
+          - KinesisStreamARN:
               Ref: CtrKinesisStreamArn
             RoleARN:
               Fn::GetAtt:
                 - FirehoseRole
                 - Arn
-        - !Ref "AWS::NoValue"
+          - !Ref "AWS::NoValue"
     Type: AWS::KinesisFirehose::DeliveryStream
   CwLogsToElasticsearchLambda:
     Properties:

@@ -66,10 +66,10 @@ Parameters:
     Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
     Type: String
   AmznConnectOutputBucketName:
-    AllowedPattern: "^[0-9a-z][0-9a-z-]*[0-9a-z]$"
-    ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or a hypen, and must start and end with a number or a lowercase letter."
+    AllowedPattern: "^[0-9a-z-]*$"
+    ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or hypens (-)."
     Default: quickstart-stratus360-connect-with-service-bucket
-    Description: Name of bucket to save logs.
+    Description: Name of bucket to save logs to.
     MaxLength: 63
     MinLength: 3
     Type: String
@@ -80,22 +80,25 @@ Parameters:
     Description: S3 key prefix for all logs. Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/) and must end with a forward slash (/).
     Type: String
   AgentFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
     Default: agent-firehose-output
     Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   CtrFirehoseS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: ctr-firehose-output
-    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the CTR logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   ContactFlowS3KeyPrefix:
-    AllowedPattern: "^[0-9a-zA-Z-][0-9a-zA-Z-]*$"
+    AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: contactflowlogs-output
     Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    MinLength: 1
     Type: String
   CtrDataStreamEnable:
     AllowedValues:
@@ -104,7 +107,7 @@ Parameters:
     Default: "false"
     Description:
       Enables CTR Kinesis Data Stream. Disabling will make it so that the CTR firehose is on DirectPut instead of from the Kinesis Data stream.
-      Enable only if you need a the Data Stream for the CTR logs (such as the the salesforce CTI adapter). 
+      Enable only if you need the Data Stream for the CTR logs (such as with the salesforce CTI adapter). 
     Type: String
   ESEnable:
     AllowedValues:
@@ -121,7 +124,7 @@ Parameters:
       The name must start with a lowercase letter and must be between 3 and 28 characters.
       Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
     Default: quickstart-ac-kibana
-    Description: if Elasticsearch enabled, sets the name of the instance
+    Description: If Elasticsearch enabled, sets the name of the instance.
     MaxLength: 28
     MinLength: 3
     Type: String
@@ -179,7 +182,7 @@ Parameters:
       - r3.4xlarge.elasticsearch
       - r3.8xlarge.elasticsearch
     Default: "r5.large.elasticsearch"
-    Description: if Elasticsearch enabled, sets the type/size of instance
+    Description: If Elasticsearch enabled, sets the type/size of instance.
     Type: String
   ESInstanceVersion:
     AllowedValues:
@@ -198,7 +201,7 @@ Parameters:
       - 2.3
       - 1.5
     Default: 6.2
-    Description: if Elasticsearch enabled, sets the Elasticsearch version
+    Description: If Elasticsearch enabled, sets the Elasticsearch version.
     Type: Number
 Conditions:
   ESEnableBool: !Equals
@@ -206,7 +209,7 @@ Conditions:
     - "true"
   ESDisableBool: !Not [Condition: ESEnableBool]
   CtrDataStreamEnableBool: !Equals
-    - Ref: ESEnable
+    - Ref: CtrDataStreamEnable
     - "true"
 Outputs:
   AgentOutputLocation:
@@ -219,6 +222,7 @@ Outputs:
         - - s3://
           - Ref: AmznConnectOutputBucketName
           - /
+          - Ref: LogS3KeyPrefix
           - Ref: AgentFirehoseS3KeyPrefix
   CtrOutputLocation:
     Description: S3 call trace records location.
@@ -230,6 +234,7 @@ Outputs:
         - - s3://
           - Ref: AmznConnectOutputBucketName
           - /
+          - Ref: LogS3KeyPrefix
           - Ref: CtrFirehoseS3KeyPrefix
   ContactFlowLogsOutputLocation:
     Description: S3 contact flow logs location.
@@ -241,6 +246,7 @@ Outputs:
         - - s3://
           - Ref: AmznConnectOutputBucketName
           - /
+          - Ref: LogS3KeyPrefix
           - Ref: ContactFlowS3KeyPrefix
 Resources:
   CopyLambdaSourceBucket:
