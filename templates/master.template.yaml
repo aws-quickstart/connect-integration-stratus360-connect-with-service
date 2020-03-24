@@ -21,9 +21,10 @@ Metadata:
           - ESInstanceType
           - ESInstanceVersion
       - Label:
-          default: Quick Start Configuration
+          default: AWS Quick Start configuration
         Parameters:
           - QSS3BucketName
+          - QSS3BucketRegion
           - QSS3KeyPrefix
     ParameterLabels:
       ContactFlowLogGroup:
@@ -48,6 +49,12 @@ Metadata:
         default: Elasticsearch Type
       ESInstanceVersion:
         default: Elasticsearch Version
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      QSS3BucketRegion:
+        default: Quick Start S3 bucket region
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
 Parameters:
   QSS3BucketName:
     AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
@@ -64,6 +71,10 @@ Parameters:
   ContactFlowLogGroup:
     Default: ""
     Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
+    Type: String
+  QSS3BucketRegion:
+    Default: 'us-east-1'
+    Description: "The AWS Region where the Quick Start S3 bucket (QSS3BucketName) is hosted. When using your own bucket, you must specify this value."
     Type: String
   AmznConnectOutputBucketName:
     AllowedPattern: "^[0-9a-z-]*$"
@@ -204,6 +215,7 @@ Parameters:
     Description: If Elasticsearch enabled, sets the Elasticsearch version.
     Type: Number
 Conditions:
+  UsingDefaultBucket: !Equals [!Ref QSS3BucketName, 'aws-quickstart']
   ESEnableBool: !Equals
     - Ref: ESEnable
     - "true"
@@ -254,7 +266,11 @@ Resources:
   CopyZipsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}submodules/lambda-copyzips/templates/copy-zips.template.yaml
+      TemplateURL: 
+        !Sub 
+          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/lambda-copyzips/templates/copy-zips.template.yaml
+          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
+            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
       Parameters:
         DestinationBucket: !Ref CopyLambdaSourceBucket
         QSS3BucketName: !Ref "QSS3BucketName"
@@ -271,7 +287,11 @@ Resources:
     DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-true.template.yaml
+      TemplateURL: 
+        !Sub 
+          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-true.template.yaml
+          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
+            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
       Parameters:
         QSS3BucketName:
           Ref: QSS3BucketName
@@ -305,7 +325,11 @@ Resources:
     DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/es-false.template.yaml
+      TemplateURL: 
+        !Sub 
+          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-false.template.yaml
+          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
+            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
       Parameters:
         QSS3BucketName:
           Ref: QSS3BucketName

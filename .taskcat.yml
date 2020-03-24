@@ -10,6 +10,7 @@ tests:
     template: ./templates/master.template.yaml
     parameters:
       QSS3BucketName: "$[taskcat_autobucket]"
+      QSS3BucketRegion: $[taskcat_current_region]
       AmznConnectOutputBucketName: "$[taskcat_random-string]"
       ESName: "$[taskcat_random-string]"
     regions:
