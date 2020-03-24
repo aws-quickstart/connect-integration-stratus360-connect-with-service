@@ -159,7 +159,7 @@ Resources:
         Variables:
           S3_BUCKET:
             Ref: AmznConnectOutputBucketName
-          S3_PREFIX: !Sub "${LogS3KeyPrefix}$ContactFlowS3KeyPrefix}/"
+          S3_PREFIX: !Sub "${LogS3KeyPrefix}${ContactFlowS3KeyPrefix}/"
       Handler: index.handler
       MemorySize: 128
       Role:
