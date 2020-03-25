@@ -65,7 +65,8 @@ Mappings:
       MakeRefTableDatabaseName: "quickstart-ref-database"
       MakeRefTableName: "quickstart-ref-table-ctr"
       MakeRefTableAgentName: "quickstart-ref-table-agent"
-      MakeRefTableParamName: "/connect/quickstart/s360/MakeRefTable/config"
+      MakeRefTableParamName: "/connect/quickstart/s360/makereftable/config"
+      CrawlerDatabaseName: "quickstart-connect-log-database"
 Resources:
   AgentFirehose:
     DependsOn: RefTableAgent
@@ -376,7 +377,9 @@ Resources:
                   - ssm:GetParameter
                 Effect: Allow
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/connect/quickstart/s360/makereftable/config
+                  - !Sub
+                      - arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MakeRefTableParamNameSub}
+                      - MakeRefTableParamNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
             Version: 2012-10-17
         - PolicyName: Quickstart-Connect-Create-Ref-Glue-Table-Perms
           PolicyDocument:
@@ -402,7 +405,7 @@ Resources:
   MakeRefTableParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: "/connect/quickstart/s360/makereftable/config"
+      Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
       Description: "Config for MakeRefTableLambda script"
       Type: String
       Value: "comma,seperated,call,attribute,list"
@@ -501,10 +504,18 @@ Resources:
       DatabaseInput: 
         Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
         Description: Reference database for Amazon Connect data logging solution
+  CrawlerDatabase:
+    Type: AWS::Glue::Database
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput: 
+        Name: !FindInMap [MakeRefTableConstants, InstanceValues, CrawlerDatabaseName]
+        Description: Database for Amazon Connect data logging solution
   GlueCrawler:
+    DependsOn: CrawlerDatabase
     Type: AWS::Glue::Crawler
     Properties: 
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, CrawlerDatabaseName]
       Description: Crawler for Amazon Connect QuickStart Logging solution
       Role: !GetAtt GlueCrawlerRole.Arn
       Schedule: 
@@ -523,16 +534,14 @@ Resources:
                 - glue.amazonaws.com
         Version: 2012-10-17
       Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
       Policies:
         - PolicyName: Quickstart-Connect-Crawler-S3-Perms
           PolicyDocument:
             Statement:
               - Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
                   - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
                   - s3:PutObject
                 Effect: Allow
                 Resource:

@@ -375,7 +375,9 @@ Resources:
               S3Key:
                 Rules:
                   - Name: prefix
-                    Value: test/
+                    Value: flows/input
+                  - Name: suffix
+                    Value: ".json"
             Function: !GetAtt CleanContactFlowLambda.Arn
     Type: AWS::S3::Bucket
   CleanContactFlowLambda:
