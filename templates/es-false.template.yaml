@@ -62,11 +62,11 @@ Conditions:
 Mappings:
   MakeRefTableConstants:
     InstanceValues:
-      MakeRefTableDatabaseName: !Sub "quickstart_${AWS::Region}_ref_database"
-      MakeRefTableName: !Sub "quickstart_${AWS::Region}_ref_table_ctr"
-      MakeRefTableAgentName: !Sub "quickstart_${AWS::Region}_ref_table_agent"
-      MakeRefTableParamName: !Sub "/connect/${AWS::Region}/quickstart/s360/makereftable/config"
-      CrawlerDatabaseName: !Sub "quickstart_${AWS::Region}_connect_log_database"
+      MakeRefTableDatabaseName: "quickstart_ref_database"
+      MakeRefTableName: "quickstart_ref_table_ctr"
+      MakeRefTableAgentName: "quickstart_ref_table_agent"
+      MakeRefTableParamName: "/connect/quickstart/s360/makereftable/config"
+      CrawlerDatabaseName: "quickstart_connect_log_database"
 Resources:
   AgentFirehose:
     DependsOn: RefTableAgent

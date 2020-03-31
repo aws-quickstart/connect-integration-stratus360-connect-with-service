@@ -442,7 +442,7 @@ Resources:
   CleanContactFlowLambdaParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/connect/${AWS::Region}/quickstart/s360/cleancontactflow/config"
+      Name: "/connect/quickstart/s360/cleancontactflow/config"
       Description: "Config for clean contact flow script"
       Type: String
       Value: '{"invert":false,"prioritize_depth":false,"set_loop_behaviour":false,"set_spread_behaviour":true,"depth_difference":250,"width_difference":250,"depth_offset":25,"width_offset":25,"entry":{"x":20,"y":500}}'
