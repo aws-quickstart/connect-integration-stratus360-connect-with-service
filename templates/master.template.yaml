@@ -391,6 +391,7 @@ Resources:
       Environment:
         Variables:
           SSM_PARAM_PATH: /connect/quickstart/s360/cleancontactflow/config
+          S3_OUTPUT_PREFIX: flows/output/
       Handler: clean-contact-flow.lambda_handler
       MemorySize: 128
       Role: !GetAtt CleanContactFlowLambdaRole.Arn
