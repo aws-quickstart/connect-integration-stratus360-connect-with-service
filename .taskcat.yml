@@ -1,5 +1,5 @@
 project:
-  name: quickstart-stratus360-connect-with-service
+  name: connect-integration-stratus360-connect-with-service
   regions:
     - ap-southeast-1
     - us-east-1

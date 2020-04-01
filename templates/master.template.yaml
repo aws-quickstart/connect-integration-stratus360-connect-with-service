@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: 
   QuickStart logging solution for Amazon Connect. 
   Builds required resources to send logs to s3, as well as with AWS Elasticsearch service or AWS Quicksight.
-  QuickStart by Tom Zhu, Stratus360, March 2020. 
+  QuickStart by Tom Zhu, Stratus360, March 2020 (qs-1qjlhrr9e). 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
