@@ -82,7 +82,7 @@ Parameters:
     AllowedPattern: "^[0-9a-z-]*$"
     ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or hypens (-)."
     Default: quickstart-stratus360-connect-with-service-bucket
-    Description: Name of bucket to save logs to.
+    Description: Name of bucket to save logs to. Name must be a unique S3 bucket name, or stack creation will fail.
     MaxLength: 63
     MinLength: 3
     Type: String
