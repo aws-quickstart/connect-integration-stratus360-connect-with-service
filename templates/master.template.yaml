@@ -1,8 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 
-  QuickStart logging solution for Amazon Connect. 
+Description: QuickStart logging solution for Amazon Connect.
   Builds required resources to send logs to s3, as well as with AWS Elasticsearch service or AWS Quicksight.
-  QuickStart by Tom Zhu, Stratus360, March 2020 (qs-1qjlhrr9e). 
+  QuickStart by Tom Zhu, Stratus360, March 2020 (qs-1qjlhrr9e).
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -35,7 +34,7 @@ Metadata:
       AmznConnectOutputBucketName:
         default: S3 Deployment Bucket Name
       CtrDataStreamEnable:
-        default: Enable CTR Data Stream 
+        default: Enable CTR Data Stream
       LogS3KeyPrefix:
         default: S3 prefix for All Log Data
       AgentFirehoseS3KeyPrefix:
@@ -68,7 +67,7 @@ Parameters:
   QSS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*$"
     ConstraintDescription: "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
-    Default: quickstart-stratus360-connect-with-service/
+    Default: connect-integration-stratus360-connect-with-service/
     Description: "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/)."
     Type: String
   ContactFlowLogGroup:
@@ -76,7 +75,7 @@ Parameters:
     Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
     Type: String
   QSS3BucketRegion:
-    Default: 'us-east-1'
+    Default: "us-east-1"
     Description: "The AWS Region where the Quick Start S3 bucket (QSS3BucketName) is hosted. When using your own bucket, you must specify this value."
     Type: String
   AmznConnectOutputBucketName:
@@ -121,7 +120,7 @@ Parameters:
     Default: "false"
     Description:
       Enables CTR Kinesis Data Stream. Disabling will make it so that the CTR firehose is on DirectPut instead of from the Kinesis Data stream.
-      Enable only if you need the Data Stream for the CTR logs (such as with the salesforce CTI adapter). 
+      Enable only if you need the Data Stream for the CTR logs (such as with the salesforce CTI adapter).
     Type: String
   ESEnable:
     AllowedValues:
@@ -218,7 +217,7 @@ Parameters:
     Description: If Elasticsearch enabled, sets the Elasticsearch version.
     Type: Number
 Conditions:
-  UsingDefaultBucket: !Equals [!Ref QSS3BucketName, 'aws-quickstart']
+  UsingDefaultBucket: !Equals [!Ref QSS3BucketName, "aws-quickstart"]
   ESEnableBool: !Equals
     - Ref: ESEnable
     - "true"
@@ -269,11 +268,16 @@ Resources:
   CopyZipsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 
-        !Sub 
-          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/lambda-copyzips/templates/copy-zips.template.yaml
-          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
-            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
+      TemplateURL: !Sub
+        - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}submodules/lambda-copyzips/templates/copy-zips.template.yaml
+        - S3Region:
+            !If [UsingDefaultBucket, !Ref "AWS::Region", !Ref QSS3BucketRegion]
+          S3Bucket:
+            !If [
+              UsingDefaultBucket,
+              !Sub "${QSS3BucketName}-${AWS::Region}",
+              !Ref QSS3BucketName,
+            ]
       Parameters:
         DestinationBucket: !Ref CopyLambdaSourceBucket
         QSS3BucketName: !Ref "QSS3BucketName"
@@ -281,8 +285,16 @@ Resources:
         SourceObjects:
           Fn::Join:
             - ","
-            - - !If [ESEnableBool, functions/deploy-es-true-cwl-logs.zip, !Ref "AWS::NoValue"]
-              - !If [ESDisableBool, functions/deploy-es-false-cwl-logs.zip, !Ref "AWS::NoValue"]
+            - - !If [
+                  ESEnableBool,
+                  functions/deploy-es-true-cwl-logs.zip,
+                  !Ref "AWS::NoValue",
+                ]
+              - !If [
+                  ESDisableBool,
+                  functions/deploy-es-false-cwl-logs.zip,
+                  !Ref "AWS::NoValue",
+                ]
               - functions/clean-contact-flow.zip
               - functions/create-ref-table.zip
   ESSetupStack:
@@ -290,11 +302,16 @@ Resources:
     DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 
-        !Sub 
-          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-true.template.yaml
-          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
-            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
+      TemplateURL: !Sub
+        - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-true.template.yaml
+        - S3Region:
+            !If [UsingDefaultBucket, !Ref "AWS::Region", !Ref QSS3BucketRegion]
+          S3Bucket:
+            !If [
+              UsingDefaultBucket,
+              !Sub "${QSS3BucketName}-${AWS::Region}",
+              !Ref QSS3BucketName,
+            ]
       Parameters:
         QSS3BucketName:
           Ref: QSS3BucketName
@@ -311,7 +328,8 @@ Resources:
         ContactFlowS3KeyPrefix:
           Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
-        CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
+        CtrKinesisStreamArn:
+          !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:
           Ref: AmznConnectOutputBucketName
         AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
@@ -328,11 +346,16 @@ Resources:
     DependsOn: CopyZipsStack
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 
-        !Sub 
-          - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-false.template.yaml
-          - S3Region: !If [UsingDefaultBucket, !Ref 'AWS::Region', !Ref QSS3BucketRegion]
-            S3Bucket: !If [UsingDefaultBucket, !Sub '${QSS3BucketName}-${AWS::Region}', !Ref QSS3BucketName]
+      TemplateURL: !Sub
+        - https://${S3Bucket}.s3.${S3Region}.${AWS::URLSuffix}/${QSS3KeyPrefix}templates/es-false.template.yaml
+        - S3Region:
+            !If [UsingDefaultBucket, !Ref "AWS::Region", !Ref QSS3BucketRegion]
+          S3Bucket:
+            !If [
+              UsingDefaultBucket,
+              !Sub "${QSS3BucketName}-${AWS::Region}",
+              !Ref QSS3BucketName,
+            ]
       Parameters:
         QSS3BucketName:
           Ref: QSS3BucketName
@@ -349,7 +372,8 @@ Resources:
         ContactFlowS3KeyPrefix:
           Ref: ContactFlowS3KeyPrefix
         AgentKinesisStreamArn: !GetAtt AgentKinesisStream.Arn
-        CtrKinesisStreamArn: !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
+        CtrKinesisStreamArn:
+          !If [CtrDataStreamEnableBool, !GetAtt CtrKinesisStream.Arn, ""]
         AmznConnectOutputBucketName:
           Ref: AmznConnectOutputBucketName
         AmznConnectOutputBucketArn: !GetAtt AmznConnectOutputBucket.Arn
