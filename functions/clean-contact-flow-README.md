@@ -2,6 +2,12 @@
 
 This lambda is designed to be triggered from an s3 event, copies any files in the event, processes the presumed contact flows information in those files, and outputs to a set output prefix in the same bucket. The contact flows are processed based on depth and placed relatively in a grid. The algorithm is designed not to create a perfectly looking contact as Connect is unable to control where it draws edge lines, but rather to provide a quick way to sort out a large, messy contact flow to improve the productivity of any users editing them.
 
+Example of before:
+![](./img/flow_before.png)
+
+Example of after:
+![](./img/flow_after.png)
+
 ## Environment Variables
 
 - **SSM_PARAM_PATH**: Name for SSM config parameters.
