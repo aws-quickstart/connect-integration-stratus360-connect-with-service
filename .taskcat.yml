@@ -1,5 +1,5 @@
 project:
-  name: quickstart-stratus360-connect-with-service
+  name: connect-integration-stratus360-connect-with-service
   regions:
     - ap-southeast-1
     - us-east-1
@@ -9,15 +9,15 @@ tests:
   default:
     template: ./templates/master.template.yaml
     parameters:
-      QSS3BucketName: "$[taskcat_autobucket]"
+      QSS3BucketName: $[taskcat_autobucket]
       QSS3BucketRegion: $[taskcat_current_region]
-      AmznConnectOutputBucketName: "$[taskcat_random-string]"
-      ESName: "$[taskcat_random-string]"
+      AmznConnectOutputBucketName: $[taskcat_random-string]
+      ESName: $[taskcat_random-string]
     regions:
       - us-east-1
-      # - us-west-2
-      # - ap-southeast-1
-      # - ap-southeast-2
-      # - ap-northeast-1
-      # - eu-central-1
-      # - eu-west-2
+      - us-west-2
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-northeast-1
+      - eu-central-1
+      - eu-west-2
