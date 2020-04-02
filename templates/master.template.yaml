@@ -23,6 +23,10 @@ Metadata:
           - ESInstanceType
           - ESInstanceVersion
       - Label:
+          default: Clean Contact Flow Configuration
+        Parameters:
+          - CleanContactFlowEnable
+      - Label:
           default: AWS Quick Start configuration
         Parameters:
           - QSS3BucketName
@@ -35,6 +39,8 @@ Metadata:
         default: S3 Deployment Bucket Name
       CtrDataStreamEnable:
         default: Enable CTR Data Stream
+      CleanContactFlowEnable:
+        default: Enable Clean Contact Flow Lambda
       LogS3KeyPrefix:
         default: S3 prefix for All Log Data
       AgentFirehoseS3KeyPrefix:
@@ -82,7 +88,7 @@ Parameters:
     AllowedPattern: "^[0-9a-z-]*$"
     ConstraintDescription: "Name of the bucket must be between 3 and 63 chars, must contain only lowercase letters, digits , or hypens (-)."
     Default: quickstart-stratus360-connect-with-service-bucket
-    Description: Name of bucket to save logs to.
+    Description: Name of bucket to save logs to. Must be a unique S3 bucket name, or stack creation will fail.
     MaxLength: 63
     MinLength: 3
     Type: String
@@ -113,6 +119,13 @@ Parameters:
     Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
     MinLength: 1
     Type: String
+  CleanContactFlowEnable:
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+    Description: Enables the lambda for cleaning contact flows.
+    Type: String
   CtrDataStreamEnable:
     AllowedValues:
       - "true"
@@ -129,7 +142,7 @@ Parameters:
     Default: "false"
     Description:
       Enables Elasticsearch if set true, automatically generating the resources
-      for Kibana/Elasticsearch and points firehose outputs to it.
+      for Kibana/Elasticsearch and points firehose outputs to it. If left false, Quick Start will setup other resources for QuickSight.
     Type: String
   ESName:
     AllowedPattern: ^[a-z][a-z0-9-]*$
@@ -224,6 +237,9 @@ Conditions:
   ESDisableBool: !Not [Condition: ESEnableBool]
   CtrDataStreamEnableBool: !Equals
     - Ref: CtrDataStreamEnable
+    - "true"
+  CleanContactFlowEnableBool: !Equals
+    - Ref: CleanContactFlowEnable
     - "true"
 Outputs:
   AgentOutputLocation:
@@ -392,19 +408,22 @@ Resources:
     Properties:
       BucketName:
         Ref: AmznConnectOutputBucketName
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: "s3:ObjectCreated:*"
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: flows/input
-                  - Name: suffix
-                    Value: ".json"
-            Function: !GetAtt CleanContactFlowLambda.Arn
+      NotificationConfiguration: !If
+        - CleanContactFlowEnableBool
+        - LambdaConfigurations:
+            - Event: "s3:ObjectCreated:*"
+              Filter:
+                S3Key:
+                  Rules:
+                    - Name: prefix
+                      Value: flows/input
+                    - Name: suffix
+                      Value: ".json"
+              Function: !GetAtt CleanContactFlowLambda.Arn
+        - !Ref "AWS::NoValue"
     Type: AWS::S3::Bucket
   CleanContactFlowLambda:
+    Condition: CleanContactFlowEnableBool
     Type: AWS::Lambda::Function
     DependsOn: CopyZipsStack
     Properties:
@@ -422,6 +441,7 @@ Resources:
       Runtime: python3.8
       Timeout: 300
   CleanContactFlowLambdaInvoke:
+    Condition: CleanContactFlowEnableBool
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref CleanContactFlowLambda
@@ -429,6 +449,7 @@ Resources:
       SourceArn: !Sub arn:aws:s3:::${AmznConnectOutputBucketName}
     Type: AWS::Lambda::Permission
   CleanContactFlowLambdaRole:
+    Condition: CleanContactFlowEnableBool
     Properties:
       AssumeRolePolicyDocument:
         Statement:
@@ -464,6 +485,7 @@ Resources:
             Version: 2012-10-17
     Type: AWS::IAM::Role
   CleanContactFlowLambdaParam:
+    Condition: CleanContactFlowEnableBool
     Type: AWS::SSM::Parameter
     Properties:
       Name: "/connect/quickstart/s360/cleancontactflow/config"
