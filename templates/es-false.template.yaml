@@ -14,7 +14,7 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is in the form "/aws/connect/{instancealiasname}".
     Type: String
   LogS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*/$"
@@ -26,21 +26,21 @@ Parameters:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
     Default: agent-firehose-output
-    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the agent logs. The key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
     MinLength: 1
     Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: ctr-firehose-output
-    Description: S3 key prefix for the CTR logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the CTR logs. The key prefix must be non-empty and can include numbers, lowercase letters, uppercase letters, or hyphens (-).
     MinLength: 1
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: contactflowlogs-output
-    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the contact flow logs. The key prefix must be non-empty and can include numbers, lowercase letters, uppercase letters, or hyphens (-).
     MinLength: 1
     Type: String
   AgentKinesisStreamArn:
@@ -73,25 +73,35 @@ Resources:
     Properties:
       DeliveryStreamType: KinesisStreamAsSource
       ExtendedS3DestinationConfiguration:
-        DataFormatConversionConfiguration: 
+        DataFormatConversionConfiguration:
           Enabled: True
           InputFormatConfiguration:
-            Deserializer: 
+            Deserializer:
               OpenXJsonSerDe: {}
           OutputFormatConfiguration:
-            Serializer: 
+            Serializer:
               ParquetSerDe: {}
           SchemaConfiguration:
             CatalogId: !Ref "AWS::AccountId"
-            DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+            DatabaseName:
+              !FindInMap [
+                MakeRefTableConstants,
+                InstanceValues,
+                MakeRefTableDatabaseName,
+              ]
             Region: !Ref "AWS::Region"
             RoleARN: !GetAtt FirehoseRole.Arn
-            TableName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+            TableName:
+              !FindInMap [
+                MakeRefTableConstants,
+                InstanceValues,
+                MakeRefTableAgentName,
+              ]
             VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
         Prefix: !Sub "${LogS3KeyPrefix}${AgentFirehoseS3KeyPrefix}/"
-        CompressionFormat: UNCOMPRESSED 
+        CompressionFormat: UNCOMPRESSED
         BufferingHints:
           IntervalInSeconds: 60
           SizeInMBs: 64
@@ -110,27 +120,38 @@ Resources:
   CtrFirehose:
     DependsOn: RefTableAgent
     Properties:
-      DeliveryStreamType: !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
+      DeliveryStreamType:
+        !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
       ExtendedS3DestinationConfiguration:
         DataFormatConversionConfiguration:
           Enabled: True
           InputFormatConfiguration:
-            Deserializer: 
+            Deserializer:
               OpenXJsonSerDe: {}
           OutputFormatConfiguration:
-            Serializer: 
+            Serializer:
               ParquetSerDe: {}
           SchemaConfiguration:
             CatalogId: !Ref "AWS::AccountId"
-            DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+            DatabaseName:
+              !FindInMap [
+                MakeRefTableConstants,
+                InstanceValues,
+                MakeRefTableDatabaseName,
+              ]
             Region: !Ref "AWS::Region"
             RoleARN: !GetAtt FirehoseRole.Arn
-            TableName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+            TableName:
+              !FindInMap [
+                MakeRefTableConstants,
+                InstanceValues,
+                MakeRefTableName,
+              ]
             VersionId: LATEST
         BucketARN:
           Ref: AmznConnectOutputBucketArn
         Prefix: !Sub "${LogS3KeyPrefix}${CtrFirehoseS3KeyPrefix}/"
-        CompressionFormat: UNCOMPRESSED 
+        CompressionFormat: UNCOMPRESSED
         BufferingHints:
           IntervalInSeconds: 60
           SizeInMBs: 64
@@ -286,7 +307,11 @@ Resources:
                 Effect: Allow
                 Resource:
                   - Ref: AgentKinesisStreamArn
-                  - !If [CtrDataStreamEnableBool, !Ref CtrKinesisStreamArn, !Ref "AWS::NoValue"]
+                  - !If [
+                      CtrDataStreamEnableBool,
+                      !Ref CtrKinesisStreamArn,
+                      !Ref "AWS::NoValue",
+                    ]
               - Action:
                   - kms:Decrypt
                 Condition:
@@ -307,17 +332,42 @@ Resources:
                 Effect: Allow
                 Resource:
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
-                  - !Sub 
+                  - !Sub
                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${MakeRefTableDatabaseNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                  - !Sub 
+                    - MakeRefTableDatabaseNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableDatabaseName,
+                        ]
+                  - !Sub
                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                      MakeRefTableNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
-                  - !Sub 
+                    - MakeRefTableDatabaseNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableDatabaseName,
+                        ]
+                      MakeRefTableNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableName,
+                        ]
+                  - !Sub
                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableAgentNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                      MakeRefTableAgentNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+                    - MakeRefTableDatabaseNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableDatabaseName,
+                        ]
+                      MakeRefTableAgentNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableAgentName,
+                        ]
             Version: 2012-10-17
           PolicyName: amznConnect-firehoseRolePolicy
     Type: AWS::IAM::Role
@@ -330,9 +380,20 @@ Resources:
       Description: Makes a reference Glue Table with a dumby schema for Firehose to use in order to output in parquet format
       Environment:
         Variables:
-          REF_DATABASE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName] 
-          REF_TABLE_NAME: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName] 
-          SSM_PARAM_ATTRIBUTES_PATH: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName] 
+          REF_DATABASE_NAME:
+            !FindInMap [
+              MakeRefTableConstants,
+              InstanceValues,
+              MakeRefTableDatabaseName,
+            ]
+          REF_TABLE_NAME:
+            !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+          SSM_PARAM_ATTRIBUTES_PATH:
+            !FindInMap [
+              MakeRefTableConstants,
+              InstanceValues,
+              MakeRefTableParamName,
+            ]
       Handler: create-ref-table.lambda_handler
       MemorySize: 128
       Role: !GetAtt MakeRefTableLambdaRole.Arn
@@ -342,10 +403,14 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Trigger MakeRefTableLambda upon param update
-      EventPattern: 
-        !Sub 
-          - '{"source":["aws.ssm"],"detail-type":["Parameter Store Change"],"detail":{"name":["${MakeRefTableParamNameSub}"],"operation":["Create","Update","LabelParameterVersion"]}}'
-          - MakeRefTableParamNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
+      EventPattern: !Sub
+        - '{"source":["aws.ssm"],"detail-type":["Parameter Store Change"],"detail":{"name":["${MakeRefTableParamNameSub}"],"operation":["Create","Update","LabelParameterVersion"]}}'
+        - MakeRefTableParamNameSub:
+            !FindInMap [
+              MakeRefTableConstants,
+              InstanceValues,
+              MakeRefTableParamName,
+            ]
       Targets:
         - Arn: !GetAtt MakeRefTableLambda.Arn
           Id: !Ref MakeRefTableLambda
@@ -378,8 +443,13 @@ Resources:
                 Effect: Allow
                 Resource:
                   - !Sub
-                      - arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MakeRefTableParamNameSub}
-                      - MakeRefTableParamNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
+                    - arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MakeRefTableParamNameSub}
+                    - MakeRefTableParamNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableParamName,
+                        ]
             Version: 2012-10-17
         - PolicyName: Quickstart-Connect-Create-Ref-Glue-Table-Perms
           PolicyDocument:
@@ -393,30 +463,56 @@ Resources:
                 Effect: Allow
                 Resource:
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
-                  - !Sub 
+                  - !Sub
                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${MakeRefTableDatabaseNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                  - !Sub 
+                    - MakeRefTableDatabaseNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableDatabaseName,
+                        ]
+                  - !Sub
                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${MakeRefTableDatabaseNameSub}/${MakeRefTableNameSub}
-                    - MakeRefTableDatabaseNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-                      MakeRefTableNameSub: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+                    - MakeRefTableDatabaseNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableDatabaseName,
+                        ]
+                      MakeRefTableNameSub:
+                        !FindInMap [
+                          MakeRefTableConstants,
+                          InstanceValues,
+                          MakeRefTableName,
+                        ]
             Version: 2012-10-17
     Type: AWS::IAM::Role
   MakeRefTableParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableParamName]
+      Name:
+        !FindInMap [
+          MakeRefTableConstants,
+          InstanceValues,
+          MakeRefTableParamName,
+        ]
       Description: "Config for MakeRefTableLambda script"
       Type: String
       Value: "comma,seperated,call,attribute,list"
   RefTable:
     DependsOn: RefTableDatabase
     Type: AWS::Glue::Table
-    Properties: 
+    Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-      TableInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
+      DatabaseName:
+        !FindInMap [
+          MakeRefTableConstants,
+          InstanceValues,
+          MakeRefTableDatabaseName,
+        ]
+      TableInput:
+        Name:
+          !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableName]
         Description: Reference table for Amazon Connect data logging solution (CTR Logs)
         StorageDescriptor:
           Columns:
@@ -471,13 +567,23 @@ Resources:
   RefTableAgent:
     DependsOn: RefTableDatabase
     Type: AWS::Glue::Table
-    Properties: 
+    Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
-      TableInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableAgentName]
+      DatabaseName:
+        !FindInMap [
+          MakeRefTableConstants,
+          InstanceValues,
+          MakeRefTableDatabaseName,
+        ]
+      TableInput:
+        Name:
+          !FindInMap [
+            MakeRefTableConstants,
+            InstanceValues,
+            MakeRefTableAgentName,
+          ]
         Description: Reference table for Amazon Connect data logging solution (Agent Logs)
-        StorageDescriptor: 
+        StorageDescriptor:
           Columns:
             - Name: awsaccountid
               Type: string
@@ -499,28 +605,39 @@ Resources:
               Type: string
   RefTableDatabase:
     Type: AWS::Glue::Database
-    Properties: 
+    Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, MakeRefTableDatabaseName]
+      DatabaseInput:
+        Name:
+          !FindInMap [
+            MakeRefTableConstants,
+            InstanceValues,
+            MakeRefTableDatabaseName,
+          ]
         Description: Reference database for Amazon Connect data logging solution
   CrawlerDatabase:
     Type: AWS::Glue::Database
-    Properties: 
+    Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseInput: 
-        Name: !FindInMap [MakeRefTableConstants, InstanceValues, CrawlerDatabaseName]
+      DatabaseInput:
+        Name:
+          !FindInMap [
+            MakeRefTableConstants,
+            InstanceValues,
+            CrawlerDatabaseName,
+          ]
         Description: Database for Amazon Connect data logging solution
   GlueCrawler:
     DependsOn: CrawlerDatabase
     Type: AWS::Glue::Crawler
-    Properties: 
-      DatabaseName: !FindInMap [MakeRefTableConstants, InstanceValues, CrawlerDatabaseName]
+    Properties:
+      DatabaseName:
+        !FindInMap [MakeRefTableConstants, InstanceValues, CrawlerDatabaseName]
       Description: Crawler for Amazon Connect QuickStart Logging solution
       Role: !GetAtt GlueCrawlerRole.Arn
-      Schedule: 
+      Schedule:
         ScheduleExpression: "cron(0/5 * * * ? *)"
-      Targets: 
+      Targets:
         S3Targets:
           - Path: !Sub "${AmznConnectOutputBucketName}/${LogS3KeyPrefix}"
   GlueCrawlerRole:

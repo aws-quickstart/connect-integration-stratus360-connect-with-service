@@ -14,7 +14,7 @@ Parameters:
     Type: String
   ContactFlowLogGroup:
     Default: ""
-    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is of the form "/aws/connect/{instancealiasname}".
+    Description: Amazon Connect contact flow Cloudwatch Logs group. Usually is in the form "/aws/connect/{instancealiasname}".
     Type: String
   LogS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-/]*/$"
@@ -26,21 +26,21 @@ Parameters:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and hyphens (-).
     Default: agent-firehose-output
-    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the agent logs. The key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
     MinLength: 1
     Type: String
   CtrFirehoseS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: ctr-firehose-output
-    Description: S3 key prefix for the CTR logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the CTR logs. The key prefix must be non-empty and can include numbers, lowercase letters, uppercase letters, or hyphens (-).
     MinLength: 1
     Type: String
   ContactFlowS3KeyPrefix:
     AllowedPattern: "^[0-9a-zA-Z-]*$"
     ConstraintDescription: Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/).
     Default: contactflowlogs-output
-    Description: S3 key prefix for the Agent logs. Non-empty key prefix can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+    Description: S3 key prefix for the contact flow logs. The key prefix must be non-empty and can include numbers, lowercase letters, uppercase letters, or hyphens (-).
     MinLength: 1
     Type: String
   AgentKinesisStreamArn:
@@ -59,7 +59,7 @@ Parameters:
       The name must start with a lowercase letter and must be between 3 and 28 characters.
       Valid characters are a-z (lowercase only), 0-9, and - (hyphen).
     Default: quickstart-ac-kibana
-    Description: If Elasticsearch enabled, sets the name of the instance.
+    Description: If Elasticsearch is enabled, specify the name of the Amazon ES instance.
     MaxLength: 28
     MinLength: 3
     Type: String
@@ -117,7 +117,7 @@ Parameters:
       - r3.4xlarge.elasticsearch
       - r3.8xlarge.elasticsearch
     Default: "r5.large.elasticsearch"
-    Description: If Elasticsearch enabled, sets the type/size of instance.
+    Description: If Elasticsearch is enabled, specify the type and size of the Amazon ES instance.
     Type: String
   ESInstanceVersion:
     AllowedValues:
@@ -136,7 +136,7 @@ Parameters:
       - 2.3
       - 1.5
     Default: 6.2
-    Description: If Elasticsearch enabled, sets the Elasticsearch version.
+    Description: If Elasticsearch is enabled, specify the Elasticsearch version.
     Type: Number
 Conditions:
   ContactFlowLogGroupExists: !Not
@@ -188,7 +188,8 @@ Resources:
     Type: AWS::KinesisFirehose::DeliveryStream
   CtrFirehose:
     Properties:
-      DeliveryStreamType: !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
+      DeliveryStreamType:
+        !If [CtrDataStreamEnableBool, "KinesisStreamAsSource", "DirectPut"]
       ElasticsearchDestinationConfiguration:
         BufferingHints:
           IntervalInSeconds: 60
@@ -381,7 +382,11 @@ Resources:
                 Effect: Allow
                 Resource:
                   - Ref: AgentKinesisStreamArn
-                  - !If [CtrDataStreamEnableBool, !Ref CtrKinesisStreamArn, !Ref "AWS::NoValue"]
+                  - !If [
+                      CtrDataStreamEnableBool,
+                      !Ref CtrKinesisStreamArn,
+                      !Ref "AWS::NoValue",
+                    ]
               - Action:
                   - kms:Decrypt
                 Condition:
