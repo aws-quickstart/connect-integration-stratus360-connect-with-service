@@ -144,6 +144,10 @@ Conditions:
       - Ref: ContactFlowLogGroup
       - ""
   CtrDataStreamEnableBool: !Not [!Equals [!Ref CtrKinesisStreamArn, ""]]
+Outputs:
+  CtrFirehoseName:
+    Description: CTR Firehose name
+    Value: !Ref CtrFirehose
 Resources:
   AgentFirehose:
     Properties:

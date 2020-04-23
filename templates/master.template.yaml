@@ -278,6 +278,21 @@ Outputs:
           - /
           - Ref: LogS3KeyPrefix
           - Ref: ContactFlowS3KeyPrefix
+  AgentResourceName:
+    Description: Agent log resource name. Select this in the 'Contact Trace Records' section of Data streaming under you Connect instance.
+    Value: !Ref AgentKinesisStream
+  CtrResourceName:
+    Description: CTR log resource name. Select this in the 'Contact Trace Records' section of Data streaming under you Connect instance.
+    Value:
+      !If [
+        CtrDataStreamEnableBool,
+        !Ref CtrKinesisStream,
+        !If [
+          ESEnableBool,
+          "Fn::GetAtt": [ESSetupStack, Outputs.CtrFirehoseName],
+          "Fn::GetAtt": [SetupStack, Outputs.CtrFirehoseName],
+        ],
+      ]
 Resources:
   CopyLambdaSourceBucket:
     Type: AWS::S3::Bucket

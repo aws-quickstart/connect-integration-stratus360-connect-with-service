@@ -67,6 +67,10 @@ Mappings:
       MakeRefTableAgentName: "quickstart_ref_table_agent"
       MakeRefTableParamName: "/connect/quickstart/s360/makereftable/config"
       CrawlerDatabaseName: "quickstart_connect_log_database"
+Outputs:
+  CtrFirehoseName:
+    Description: CTR Firehose name
+    Value: !Ref CtrFirehose
 Resources:
   AgentFirehose:
     DependsOn: RefTableAgent
